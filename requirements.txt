@@ -4,5 +4,5 @@ GeoAlchemy2==0.6.3
 SQLAlchemy==1.3.11
 psycopg2-binary==2.8.4
 packaging==20.4
-git+https://github.com/brazil-data-cube/bdc-catalog@v0.4.0
+git+https://github.com/inpe-cdsr/bdc-catalog@cdsr
 git+https://github.com/brazil-data-cube/bdc-auth-client@v0.2.0
