@@ -11,7 +11,8 @@ from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2.functions import GenericFunction
 from sqlalchemy import Float, and_, cast, exc, func, or_
 
-from .config import BDC_STAC_API_VERSION, BDC_STAC_FILE_ROOT, BDC_STAC_PNG_ROOT, BDC_STAC_MAX_LIMIT
+from .config import BDC_STAC_API_VERSION, BDC_STAC_FILE_ROOT, BDC_STAC_PNG_ROOT, \
+                    BDC_STAC_ITEM_IS_PUBLIC, BDC_STAC_MAX_LIMIT
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=exc.SAWarning)
@@ -27,6 +28,24 @@ class ST_Extent(GenericFunction):
 
     name = "ST_Extent"
     type = None
+
+
+def get_is_public_flag_by_env_variable():
+    """Returns `Item.is_public.is_(...)` flag based on the
+    `BDC_STAC_ITEM_IS_PUBLIC` environment variable."""
+    # It returns a list, because of bool comparison.
+    # 'sqlalchemy.sql.elements.BinaryExpression' cannot be compared,
+    # then I return a list with one element
+    if BDC_STAC_ITEM_IS_PUBLIC == '1':
+        return [Item.is_public.is_(True)]
+
+    elif BDC_STAC_ITEM_IS_PUBLIC == '0':
+        return [Item.is_public.is_(False)]
+
+    # if `BDC_STAC_ITEM_IS_PUBLIC` flag is another string (e.g. 'None'),
+    # then I do not need to insert this flag on the query,
+    # in other words, I search all items
+    return []
 
 
 def get_collection_items(
@@ -92,10 +111,22 @@ def get_collection_items(
         Tile.name.label("tile"),
     ]
 
+    # default WHERE clause
     where = [
         Collection.id == Item.collection_id,
-        or_(Collection.is_public.is_(True), Collection.id.in_([int(r.split(":")[0]) for r in roles])),
+        or_(
+            Collection.is_public.is_(True),
+            Collection.id.in_([int(r.split(":")[0]) for r in roles])
+        )
     ]
+
+    # get `[Item.is_public.is_(...)]` flag based on the env. variable
+    is_public = get_is_public_flag_by_env_variable()
+
+    # if the env. variable is defined, then add the condition in the where clause,
+    # else the above default one is used
+    if is_public:
+        where = [*is_public, *where]
 
     if ids is not None:
         where += [Item.name.in_(ids.split(","))]
@@ -156,10 +187,13 @@ def get_collection_items(
             else:
                 date_filter = [and_(Item.start_date <= datetime, Item.end_date >= datetime)]
             where += date_filter
-    outer = [Item.tile_id == Tile.id]
-    query = session.query(*columns).outerjoin(Tile, *outer).filter(*where).order_by(Item.start_date.desc(), Item.id)
 
-    result = query.paginate(page=int(page), per_page=int(limit), error_out=False, max_per_page=BDC_STAC_MAX_LIMIT)
+    outer = [Item.tile_id == Tile.id]
+    query = session.query(*columns).outerjoin(Tile, *outer) \
+            .filter(*where).order_by(Item.start_date.desc(), Item.id)
+
+    result = query.paginate(page=int(page), per_page=int(limit),
+                            error_out=False, max_per_page=BDC_STAC_MAX_LIMIT)
 
     return result
 

@@ -321,6 +321,7 @@ def items_id(collection_id, item_id, roles=[], access_token=""):
 def stac_search(roles=[], access_token=""):
     """Search STAC items with simple filtering."""
     bbox, datetime, ids, collections, page, limit, intersects, query = None, None, None, None, None, None, None, None
+ 
     if request.method == "POST":
         if request.is_json:
             request_json = request.get_json()
@@ -401,6 +402,7 @@ def stac_search(roles=[], access_token=""):
             next_links["method"] = "POST"
             next_links["merge"] = True
         gjson["links"].append(next_links)
+
     if items.has_prev:
         if request.method == "GET":
             args["page"] = items.prev_num
